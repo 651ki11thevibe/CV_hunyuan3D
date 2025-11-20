@@ -15,6 +15,8 @@
 
 在 autodl 上可直接使用最新版本的 PyTorch 与 CUDA 环境，无需手动安装。
 
+部署硬件 5090*1 ，显存>=32GB
+
 如需要创建独立环境：
 ```bash
 conda create -n cv3d python=3.10 -y
@@ -128,8 +130,7 @@ python scripts/run_image2asset.py --image path/to/image.png --name output
 
 - `enable_texture: true/false` - 是否启用纹理生成（默认开启，耗时约 20 分钟）
 - `low_vram_mode: true` - 低显存模式（推荐开启）
-- `output_type: "trimesh"` - 直接返回 trimesh 对象（避免辅助平面，推荐）
-
+-  `enable_background_removal: true` 启用背景移除（使用 Hunyuan3D 的 BackgroundRemover）,会占用显存
 ## 注意事项
 
 - **显存要求**：建议 24GB+ GPU（5090 等）
