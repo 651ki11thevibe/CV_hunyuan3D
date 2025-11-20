@@ -30,9 +30,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--format",
         type=str,
-        default="obj",
+        default="glb",
         choices=["obj", "glb"],
-        help="输出网格格式。",
+        help="输出网格格式（默认: glb）。",
     )
     parser.add_argument("--name", type=str, default="asset_from_text", help="输出文件的基础名称。")
     return parser.parse_args()
@@ -44,6 +44,11 @@ def main() -> None:
     prompt = load_text_prompt(prompt=args.prompt, prompt_file=args.prompt_file)
 
     result = pipeline.generate_from_text(prompt, output_name=args.name, file_format=args.format)
+    
+    # 输出中间产物（文生图生成的 2D 图像）
+    if "intermediate_image_path" in result:
+        print(f"Intermediate image (text-to-image) saved to: {Path(result['intermediate_image_path'])}")
+    
     print(f"Mesh saved to: {Path(result['mesh_path'])}")
     print(f"Metadata saved to: {Path(result['metadata_path'])}")
     if result["previews"]:

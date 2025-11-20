@@ -26,9 +26,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--format",
         type=str,
-        default="obj",
+        default="glb",
         choices=["obj", "glb"],
-        help="输出网格格式。",
+        help="输出网格格式（默认: glb）。",
     )
     parser.add_argument("--name", type=str, default="asset_from_image", help="输出文件的基础名称。")
     return parser.parse_args()

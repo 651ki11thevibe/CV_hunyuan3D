@@ -9,10 +9,18 @@
 
 from __future__ import annotations
 
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 
 import numpy as np
 from PIL import Image, ImageOps
+
+# 尝试导入 BackgroundRemover（Hunyuan3D 官方提供的背景移除工具）
+try:
+    from hy3dgen.rembg import BackgroundRemover
+    HAS_BACKGROUND_REMOVER = True
+except ImportError:
+    HAS_BACKGROUND_REMOVER = False
+    BackgroundRemover = None  # type: ignore
 
 
 def resize_and_normalize(image: Image.Image, size: Tuple[int, int] = (512, 512)) -> Image.Image:
@@ -53,6 +61,30 @@ def compute_edge_map(image: Image.Image) -> np.ndarray:
     return mag
 
 
+def remove_background(image: Image.Image, use_rembg: bool = True) -> Image.Image:
+    """
+    移除图像背景。
+    
+    参数:
+        image: 输入 PIL 图像。
+        use_rembg: 是否使用 BackgroundRemover（如果可用）。
+    
+    返回:
+        移除背景后的图像（RGBA 模式，透明背景）。
+    """
+    if use_rembg and HAS_BACKGROUND_REMOVER and BackgroundRemover is not None:
+        # 如果图像是 RGB 模式，使用 BackgroundRemover
+        if image.mode == 'RGB':
+            rembg = BackgroundRemover()
+            image = rembg(image)
+            return image.convert("RGBA")
+        # 如果已经是 RGBA，直接返回
+        return image.convert("RGBA")
+    else:
+        # 如果没有 BackgroundRemover，返回原始图像（转换为 RGBA）
+        return image.convert("RGBA")
+
+
 def preprocess_image_for_model(image: Image.Image, config: Dict | None = None) -> Dict:
     """
     供流水线调用的高层图像预处理入口。
@@ -60,18 +92,36 @@ def preprocess_image_for_model(image: Image.Image, config: Dict | None = None) -
     参数:
         image: 输入 PIL 图像。
         config: 可选的预处理配置字典。
+            - enable_background_removal: bool (默认 True) - 是否启用背景移除
 
     返回:
         字典，包含：
-            - 'image': 预处理后的图像
+            - 'image': 预处理后的图像（RGB 或 RGBA）
             - 'edge_map': 简单的边缘图（numpy 数组）
     """
-    _ = config  # placeholder
-    resized = resize_and_normalize(image)
-    edges = compute_edge_map(resized)
+    # 检查是否启用背景移除
+    enable_bg_removal = True
+    if config:
+        enable_bg_removal = config.get("enable_background_removal", True)
+    
+    # 背景移除（如果启用）
+    if enable_bg_removal:
+        image = remove_background(image, use_rembg=True)
+    
+    # 缩放和规范化（如果是 RGBA，先转换为 RGB 进行缩放，然后转换回 RGBA）
+    if image.mode == 'RGBA':
+        # 对于 RGBA 图像，保持透明度
+        resized = ImageOps.fit(image, (512, 512), method=Image.BICUBIC)
+    else:
+        # 对于 RGB 图像，转换为 RGB 进行缩放
+        resized = resize_and_normalize(image)
+    
+    # 计算边缘图（使用 RGB 版本）
+    edges = compute_edge_map(resized.convert("RGB") if resized.mode == 'RGBA' else resized)
+    
     return {"image": resized, "edge_map": edges}
 
 
-__all__ = ["resize_and_normalize", "compute_edge_map", "preprocess_image_for_model"]
+__all__ = ["resize_and_normalize", "compute_edge_map", "preprocess_image_for_model", "remove_background"]
 
 

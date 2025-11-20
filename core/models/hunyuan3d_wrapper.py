@@ -44,10 +44,12 @@ class RawAsset:
             - 'vertices': (N, 3) float32 顶点坐标
             - 'faces': (M, 3) int64 三角面索引
         textures: 可选纹理信息（如 UV 贴图、纹理图像等）。
+        _original_mesh: 内部使用，保存原始 trimesh 对象（如果可用），用于直接导出。
     """
 
     mesh: Dict[str, Any]
     textures: Optional[Dict[str, Any]] = field(default=None)
+    _original_mesh: Any = field(default=None, repr=False)
 
 
 def _resolve_torch_dtype(dtype: Optional[str]):
@@ -88,8 +90,7 @@ def _unwrap_pipeline_output(result: Any) -> Any:
 
 def _select_geometry_from_scene(scene: trimesh.Scene) -> trimesh.Trimesh:
     """
-    在 texgen 的返回结果中，经常包含一个 UV 展平的平面几何体。
-    这里优先选择非平面几何，若不存在则回退到合并后的几何。
+    从场景中选择主要几何体，过滤掉辅助平面。
     """
     geometries = []
     for name, geom in scene.geometry.items():
@@ -171,7 +172,8 @@ class Hunyuan3DModel:
         self._hf_auth_token = hf_auth_token
         self._torch_dtype = _resolve_torch_dtype(torch_dtype)
 
-        self.shape_pipeline = self._load_shape_pipeline(model_path, model_subfolder)
+        variant = None
+        self.shape_pipeline = self._load_shape_pipeline(model_path, model_subfolder, variant=variant)
         self.texture_pipeline = None
 
         if enable_texture and texture_model_path:
@@ -181,11 +183,13 @@ class Hunyuan3DModel:
                     " 请在 Hunyuan3D-2 仓库中按照 README 安装 texgen 相关依赖。"
                 )
             self.texture_pipeline = self._load_texture_pipeline(texture_model_path, texture_subfolder)
-
-    def _load_shape_pipeline(self, model_path: str, model_subfolder: Optional[str]):
+    
+    def _load_shape_pipeline(self, model_path: str, model_subfolder: Optional[str], variant: Optional[str] = None):
         kwargs: Dict[str, Any] = {}
         if model_subfolder:
             kwargs["subfolder"] = model_subfolder
+        if variant:
+            kwargs["variant"] = variant
         if self._hf_auth_token:
             kwargs["token"] = self._hf_auth_token
 
@@ -218,6 +222,10 @@ class Hunyuan3DModel:
             pipe.enable_flashvdm()
 
     def _maybe_apply_texture(self, mesh: Any, reference: Any) -> Any:
+        """
+        应用纹理到网格，与官方 demo 保持一致：
+        mesh = pipeline_texgen(mesh, image=image)
+        """
         if self.texture_pipeline is None or reference is None:
             return mesh
         mesh_for_texture = _ensure_trimesh(_unwrap_pipeline_output(mesh))
@@ -225,11 +233,22 @@ class Hunyuan3DModel:
         return _unwrap_pipeline_output(outputs)
 
     def _mesh_to_raw_asset(self, mesh_like: Any) -> RawAsset:
+        """
+        将 trimesh 对象转换为 RawAsset。
+        
+        注意：如果原始 mesh 已经有 visual 信息，我们会保留它以便后续直接导出。
+        """
         trimesh_obj = _ensure_trimesh(_unwrap_pipeline_output(mesh_like))
         vertices = np.asarray(trimesh_obj.vertices, dtype=np.float32)
         faces = np.asarray(trimesh_obj.faces, dtype=np.int64)
         textures = _extract_texture_data(trimesh_obj)
-        return RawAsset(mesh={"vertices": vertices, "faces": faces}, textures=textures)
+        
+        # 如果原始 mesh 有 visual 信息，保存原始 mesh 引用以便直接导出
+        raw_asset = RawAsset(mesh={"vertices": vertices, "faces": faces}, textures=textures)
+        if hasattr(trimesh_obj, "visual") and trimesh_obj.visual is not None:
+            # 保存原始 mesh 引用，以便在导出时直接使用（避免重新创建丢失信息）
+            raw_asset._original_mesh = trimesh_obj
+        return raw_asset
 
     def _resolve_texture_reference(
         self,
@@ -247,15 +266,8 @@ class Hunyuan3DModel:
 
     def generate_from_text(self, prompt: str, extra_cond: Optional[Dict[str, Any]] = None) -> RawAsset:
         """
-        使用官方 Hunyuan3D-2 文本到 3D 推理。
-
-        说明：
-            Hunyuan3D-2 v2.0 主推的是 Image-to-3D 流程，当前公开的
-            `Hunyuan3DDiTFlowMatchingPipeline` 接口主要以图像为输入。
-            直接仅传入 prompt 在部分权重配置下会导致内部尝试对空图像
-            做 resize 而报错（见用户日志中的 OpenCV 断言失败）。
-
-            这里先显式抛出友好错误，引导使用图像入口，避免产生误导。
+        Hunyuan3D-2 v2.0 主要支持 Image-to-3D，不支持直接文本输入。
+        请使用 generate_from_image 或通过文本到图像模型生成图像后再调用。
         """
         raise RuntimeError(
             "当前配置的 Hunyuan3D-2 v2.0 形状模型主要支持『图像到 3D』，"
@@ -271,15 +283,35 @@ class Hunyuan3DModel:
         extra_cond: Optional[Dict[str, Any]] = None,
     ) -> RawAsset:
         """
-        使用官方 Hunyuan3D-2 图像到 3D 推理。
+        图像到 3D 推理。
+        
+        参数:
+            preprocessed_image: 包含 "image" 字段的字典，值为 PIL.Image 或视图字典
+            extra_cond: 额外参数，支持 output_type, octree_resolution, num_chunks, generator
         """
         image = preprocessed_image.get("image")
         if image is None:
             raise ValueError("预处理结构缺少 `image` 字段，无法执行图像到 3D 推理。")
-        shape = self.shape_pipeline(
-            image=image,
-            num_inference_steps=self.sampling_steps,
-        )
+        
+        # 构建 shape pipeline 的调用参数
+        shape_kwargs = {
+            "image": image,
+            "num_inference_steps": self.sampling_steps,
+        }
+        
+        shape_pipeline_kwargs = getattr(self, "shape_pipeline_kwargs", {})
+        if shape_pipeline_kwargs:
+            shape_kwargs.update(shape_pipeline_kwargs)
+        if extra_cond:
+            if "output_type" in extra_cond:
+                shape_kwargs["output_type"] = extra_cond["output_type"]
+            for key in ["octree_resolution", "num_chunks", "generator"]:
+                if key in extra_cond:
+                    shape_kwargs[key] = extra_cond[key]
+        
+        shape_result = self.shape_pipeline(**shape_kwargs)
+        shape = _unwrap_pipeline_output(shape_result)
+        
         fallback_reference = preprocessed_image.get(self.texture_reference_field)
         reference = self._resolve_texture_reference(extra_cond, fallback=fallback_reference)
         textured = self._maybe_apply_texture(shape, reference)
@@ -290,7 +322,7 @@ def load_hunyuan3d_from_config(config: Dict[str, Any]) -> Hunyuan3DModel:
     """
     从配置字典构建 Hunyuan3D 模型实例的辅助函数。
     """
-    return Hunyuan3DModel(
+    model = Hunyuan3DModel(
         model_path=config.get("model_path", "path/to/hunyuan3d"),
         model_subfolder=config.get("model_subfolder"),
         device=config.get("device", "cuda"),
@@ -304,6 +336,14 @@ def load_hunyuan3d_from_config(config: Dict[str, Any]) -> Hunyuan3DModel:
         low_vram_mode=bool(config.get("low_vram_mode", False)),
         enable_flashvdm=bool(config.get("enable_flashvdm", False)),
     )
+    model.shape_pipeline_kwargs = config.get("shape_pipeline_kwargs", {})
+    if config.get("variant"):
+        model.shape_pipeline = model._load_shape_pipeline(
+            config.get("model_path", "path/to/hunyuan3d"),
+            config.get("model_subfolder"),
+            variant=config.get("variant")
+        )
+    return model
 
 
 def convert_mesh_to_gaussians(asset: RawAsset, config: Dict[str, Any] | None = None) -> Dict[str, Any]:

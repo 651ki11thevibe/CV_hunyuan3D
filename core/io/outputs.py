@@ -33,7 +33,7 @@ def save_asset_as_mesh(
     asset: RawAsset,
     output_path: str | Path,
     *,
-    file_format: str = "obj",
+    file_format: str = "glb",
 ) -> Path:
     """
     将 `RawAsset` 保存为网格文件。
@@ -41,27 +41,33 @@ def save_asset_as_mesh(
     参数:
         asset: 生成的资产对象，包含网格顶点与三角面。
         output_path: 目标文件路径（后缀可能会被 `file_format` 覆盖）。
-        file_format: {"obj", "glb"} 之一；FBX 等格式保留为 TODO。
+        file_format: {"obj", "glb"} 之一。
 
     返回:
         实际写入的文件路径。
     """
     output_path = Path(output_path)
     if file_format not in {"obj", "glb"}:
-        # FBX and other formats can be added here using external tools / SDKs.
-        raise ValueError(f"Unsupported format: {file_format}")
+        raise ValueError(f"Unsupported format: {file_format}。支持的格式: obj, glb")
 
-    vertices = np.asarray(asset.mesh["vertices"], dtype=np.float32)
-    faces = np.asarray(asset.mesh["faces"], dtype=np.int64)
-    mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+    # 如果原始 mesh 可用且已有 visual 信息，直接使用（避免重新创建丢失信息）
+    if hasattr(asset, "_original_mesh") and asset._original_mesh is not None:
+        mesh = asset._original_mesh.copy()
+        # 确保纹理文件已保存
+        if asset.textures and asset.textures.get("albedo") is not None:
+            _prepare_texture_image(asset.textures["albedo"], output_path)
+    else:
+        vertices = np.asarray(asset.mesh["vertices"], dtype=np.float32)
+        faces = np.asarray(asset.mesh["faces"], dtype=np.int64)
+        mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
+        _apply_textures_to_mesh(asset, mesh, output_path)
 
-    _apply_textures_to_mesh(asset, mesh, output_path)
+    # 设置正确的文件扩展名
+    output_path = output_path.with_suffix(f".{file_format}")
 
     if file_format == "obj":
-        output_path = output_path.with_suffix(".obj")
         mesh.export(output_path.as_posix())
     elif file_format == "glb":
-        output_path = output_path.with_suffix(".glb")
         mesh.export(output_path.as_posix())
 
     return output_path
@@ -81,6 +87,9 @@ def save_asset_metadata(asset: RawAsset, output_dir: str | Path, name: str = "me
             return obj.tolist()
         if isinstance(obj, (np.floating, np.integer)):
             return obj.item()
+        if isinstance(obj, trimesh.Trimesh):
+            # trimesh 对象无法序列化，返回基本信息
+            return {"type": "Trimesh", "vertices": len(obj.vertices), "faces": len(obj.faces)}
         if isinstance(obj, dict):
             return {k: _to_serializable(v) for k, v in obj.items()}
         if isinstance(obj, (list, tuple)):
@@ -90,6 +99,8 @@ def save_asset_metadata(asset: RawAsset, output_dir: str | Path, name: str = "me
     output_dir = ensure_dir(output_dir)
     meta_path = output_dir / f"{name}.json"
     raw_data = asdict(asset)
+    # 移除 _original_mesh（trimesh 对象无法 JSON 序列化）
+    raw_data.pop("_original_mesh", None)
     textures = raw_data.get("textures")
     original_textures = asset.textures or {}
     if textures:

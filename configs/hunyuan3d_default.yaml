@@ -1,15 +1,41 @@
-model_path: "tencent/Hunyuan3D-2"
+model_path: "/root/autodl-tmp/models/Hunyuan3D-2-local"
 model_subfolder: "hunyuan3d-dit-v2-0"
+# 对于多视图模型，使用：
+# model_path: "tencent/Hunyuan3D-2mv"
+# model_subfolder: "hunyuan3d-dit-v2-mv"
+# variant: "fp16"  # 可选，指定模型变体
 device: "cuda"
 torch_dtype: "float16"
 sampling_steps: 30
+# 图像预处理配置
+image_preprocessing:
+  enable_background_removal: true  # 启用背景移除（使用 Hunyuan3D 的 BackgroundRemover）
+# 形状生成 pipeline 的额外参数（可选）
+shape_pipeline_kwargs:
+    output_type: "trimesh"  # 推荐：直接返回 trimesh 对象，避免辅助平面
+  # octree_resolution: 380   # 八叉树分辨率（影响质量）
+  # num_chunks: 20000        # 块数量（影响质量）
 default_output_dir: "outputs/"
-enable_texture: false
-texture_model_path: "tencent/Hunyuan3D-2"
+enable_texture: true
+texture_model_path: "/root/autodl-tmp/models/Hunyuan3D-2-local"
 texture_subfolder: "hunyuan3d-paint-v2-0"
 texture_reference_field: "image"
 low_vram_mode: true
 enable_flashvdm: false
 hf_auth_token:
+
+text_to_image:
+  enabled: true
+  # 本地 diffusers 方案（推荐，适合服务器环境）
+  provider: "local_diffusers"
+  # 选项1: 从本地路径加载（推荐，避免每次下载）
+  local_model_path: "/root/autodl-tmp/models/FLUX.1-schnell"  # 从魔塔社区下载后指定路径
+  # 选项2: 从 HuggingFace/魔塔自动下载（首次运行会下载到缓存）
+  # model_id: "black-forest-labs/FLUX.1-schnell"
+  width: 768
+  height: 768
+  guidance_scale: 7.5
+  negative_prompt: ""
+  num_inference_steps: 20  # FLUX.1-schnell 通常 20 步即可
 
 

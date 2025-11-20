@@ -3,5 +3,13 @@ Pillow
 PyYAML
 trimesh
 imageio
+requests
+
+# 可选依赖（根据使用的文生图方案选择安装）:
+diffusers          # 用于本地 diffusers（必需）
+transformers       # 用于本地 diffusers（必需）
+accelerate         # 用于本地 diffusers（必需）
+sentencepiece      # 用于 FLUX 等模型的 tokenizer（必需，如果使用 FLUX 模型）
+modelscope         # 用于从魔塔社区下载模型（推荐）
 
 
