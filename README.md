@@ -4,6 +4,7 @@
 
 ## 功能特性
 
+- **多视图 → 3D** (New!)：支持使用 Hunyuan3D-2mv 模型，通过前/后/左/右多视图生成高精度 3D 资产
 - **文本 → 3D**：通过 FLUX.1-schnell 文生图 + Hunyuan3D-2 图像到 3D
 - **图像 → 3D**：直接使用图像生成 3D 资产
 - **纹理渲染**：支持高质量纹理生成
@@ -52,60 +53,56 @@ cd CV_3D
 # 安装基础依赖
 pip install -r requirements.txt
 
-# 安装文生图依赖（必需）
-pip install diffusers transformers accelerate sentencepiece modelscope
+# 安装文生图及下载依赖
+pip install diffusers transformers accelerate sentencepiece huggingface_hub
 ```
 
 ### 4. 下载模型
 
-所有模型从 ModelScope 下载：
-
-#### 4.1 Hunyuan3D-2 模型
+我们提供了一键下载脚本，支持从 Hugging Face 官方源或国内镜像下载。
 
 ```bash
-pip install modelscope
+# 下载 Hunyuan3D-2mv 和 Texture 模型到 weights/ 目录
+# 默认使用 Hugging Face 官方源（香港/海外服务器）
+python scripts/download_models.py
 
-# 下载形状生成模型,仓库中有注明纹理、形状、光照模型
-python -c "
-from modelscope import snapshot_download
-snapshot_download('AI-ModelScope/Hunyuan3D-2', 
-                  cache_dir='/root/autodl-tmp/models/Hunyuan3D-2-local')
-"
-
-# 下载纹理生成模型（已在上述下载中包含，确认路径为）
-# /root/autodl-tmp/models/Hunyuan3D-2-local/hunyuan3d-paint-v2-0
+# 如果在内地服务器，可使用国内镜像加速
+python scripts/download_models.py --mirror
 ```
 
-**ModelScope 链接**：
-- 形状模型：https://modelscope.cn/models/AI-ModelScope/Hunyuan3D-2
-- 纹理模型：包含在上述仓库中
-
-#### 4.2 FLUX.1-schnell 文生图模型
-
-```bash
-python -c "
-from modelscope import snapshot_download
-snapshot_download('AI-ModelScope/FLUX.1-schnell',
-                  cache_dir='/root/autodl-tmp/models/FLUX.1-schnell')
-"
-```
-
-**ModelScope 链接**：https://modelscope.cn/models/AI-ModelScope/FLUX.1-schnell
+模型将保存在 `weights/` 目录下，结构如下：
+- `weights/hunyuan3d-dit-v2-mv` (形状模型)
+- `weights/hunyuan3d-paint-v2-0` (纹理模型)
 
 ### 5. 配置
 
-编辑 `configs/hunyuan3d_default.yaml`，确认模型路径：
+编辑 `configs/hunyuan3d_mv_local.yaml` (推荐) 或 `configs/hunyuan3d_default.yaml`。
+
+`configs/hunyuan3d_mv_local.yaml` 默认配置指向 `weights/` 目录：
 
 ```yaml
-model_path: "/root/autodl-tmp/models/Hunyuan3D-2-local"
-model_subfolder: "hunyuan3d-dit-v2-0"
-texture_model_path: "/root/autodl-tmp/models/Hunyuan3D-2-local"
+model_path: "weights"
+model_subfolder: "hunyuan3d-dit-v2-mv"
+texture_model_path: "weights"
 texture_subfolder: "hunyuan3d-paint-v2-0"
-text_to_image:
-  local_model_path: "/root/autodl-tmp/models/FLUX.1-schnell"
 ```
 
 ## 使用方法
+
+### 多视图 → 3D (New!)
+
+使用 `Hunyuan3D-2mv` 模型，支持提供多张视角图片以获得更精准的几何形状。
+
+```bash
+python scripts/run_mv_image2asset.py \
+    --config configs/hunyuan3d_mv_local.yaml \
+    --front path/to/front.png \
+    --back path/to/back.png \
+    --left path/to/left.png \
+    --right path/to/right.png \
+    --name my_mv_asset
+```
+*注意：至少需要提供 `--front` 视图。*
 
 ### 文本 → 3D
 
@@ -113,7 +110,7 @@ text_to_image:
 python scripts/run_text2asset.py --prompt "a wooden chair" --name chair
 ```
 
-### 图像 → 3D
+### 单图像 → 3D
 
 ```bash
 python scripts/run_image2asset.py --image path/to/image.png --name output
@@ -130,7 +127,8 @@ python scripts/run_image2asset.py --image path/to/image.png --name output
 
 - `enable_texture: true/false` - 是否启用纹理生成（默认开启，耗时约 20 分钟）
 - `low_vram_mode: true` - 低显存模式（推荐开启）
--  `enable_background_removal: true` 启用背景移除（使用 Hunyuan3D 的 BackgroundRemover）,会占用显存
+- `enable_background_removal: true` 启用背景移除（使用 Hunyuan3D 的 BackgroundRemover）,会占用显存
+
 ## 注意事项
 
 - **显存要求**：建议 24GB+ GPU（5090 等）
@@ -141,17 +139,21 @@ python scripts/run_image2asset.py --image path/to/image.png --name output
 
 ```
 CV_3D/
-├── configs/              # 配置文件
+├── configs/              # 配置文件 (含 hunyuan3d_mv_local.yaml)
 ├── core/                 # 核心模块
 │   ├── models/          # 模型封装
-│   ├── pipeline/        # 生成流水线
+│   ├── pipeline/        # 生成流水线 (含 mv_pipeline.py)
 │   ├── io/              # 输入输出
 │   └── preprocess/      # 预处理
 ├── scripts/              # 命令行脚本
+│   ├── download_models.py   # 模型下载脚本
+│   ├── run_mv_image2asset.py # 多视图生成脚本
+│   └── ...
 └── outputs/              # 输出目录
+└── weights/              # 模型权重目录
 ```
 
 ## 参考
 
 - [Hunyuan3D-2 官方仓库](https://github.com/Tencent-Hunyuan/Hunyuan3D-2)
-- [ModelScope 模型库](https://modelscope.cn)
+- [Hunyuan3D-2mv HuggingFace](https://huggingface.co/tencent/Hunyuan3D-2mv)

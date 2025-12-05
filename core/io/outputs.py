@@ -73,7 +73,7 @@ def save_asset_as_mesh(
     return output_path
 
 
-def save_asset_metadata(asset: RawAsset, output_dir: str | Path, name: str = "metadata") -> Path:
+def save_asset_metadata(asset: RawAsset, output_dir: str | Path, name: str = "metadata", extra_info: Optional[dict] = None) -> Path:
     """
     保存资产的轻量级元信息（JSON），便于调试或传递给后续模块。
     """
@@ -99,6 +99,11 @@ def save_asset_metadata(asset: RawAsset, output_dir: str | Path, name: str = "me
     output_dir = ensure_dir(output_dir)
     meta_path = output_dir / f"{name}.json"
     raw_data = asdict(asset)
+    
+    # 注入额外信息
+    if extra_info:
+        raw_data.update(extra_info)
+
     # 移除 _original_mesh（trimesh 对象无法 JSON 序列化）
     raw_data.pop("_original_mesh", None)
     textures = raw_data.get("textures")

@@ -1,0 +1,41 @@
+# Hunyuan3D-2mv 多视图生成配置文件
+
+# 形状生成模型 (Multi-view Shape Generation)
+# 从 Hugging Face 加载微调后的 MV 模型
+model_path: "tencent/Hunyuan3D-2mv"
+model_subfolder: "hunyuan3d-dit-v2-mv"
+
+# 设备与精度配置
+device: "cuda"
+torch_dtype: "float16"
+sampling_steps: 30
+
+# 图像预处理配置
+image_preprocessing:
+  enable_background_removal: true  # 建议对输入视图进行背景移除
+
+# 形状生成参数
+shape_pipeline_kwargs:
+  output_type: "trimesh"  # 直接返回 trimesh 对象
+  octree_resolution: 380  # 可根据显存调整
+  num_chunks: 20000
+
+# 纹理生成配置 (Texture Generation)
+# 纹理模型通常复用 Hunyuan3D-2 的基础绘画模型
+enable_texture: true
+texture_model_path: "tencent/Hunyuan3D-2"
+texture_subfolder: "hunyuan3d-paint-v2-0"
+texture_reference_field: "image"  # 纹理参考图字段（通常使用 front view 或单独指定）
+
+# 显存优化
+low_vram_mode: true
+enable_flashvdm: false  # 如果安装了 FlashAttention 可以开启
+
+# 输出设置
+default_output_dir: "outputs/mv_assets"
+
+# Hugging Face Token (如果需要访问受限模型)
+hf_auth_token: null
+
+
+

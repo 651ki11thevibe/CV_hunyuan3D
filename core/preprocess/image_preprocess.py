@@ -13,14 +13,25 @@ from typing import Dict, Tuple, Optional
 
 import numpy as np
 from PIL import Image, ImageOps
+import sys
 
 # 尝试导入 BackgroundRemover（Hunyuan3D 官方提供的背景移除工具）
 try:
     from hy3dgen.rembg import BackgroundRemover
     HAS_BACKGROUND_REMOVER = True
 except ImportError:
-    HAS_BACKGROUND_REMOVER = False
-    BackgroundRemover = None  # type: ignore
+    # 尝试使用 rembg 库作为备选
+    try:
+        from rembg import remove
+        HAS_BACKGROUND_REMOVER = True
+        BackgroundRemover = remove # type: ignore
+        USE_REMBG_LIB = True
+    except ImportError:
+        HAS_BACKGROUND_REMOVER = False
+        BackgroundRemover = None  # type: ignore
+        USE_REMBG_LIB = False
+else:
+    USE_REMBG_LIB = False
 
 
 def resize_and_normalize(image: Image.Image, size: Tuple[int, int] = (512, 512)) -> Image.Image:
@@ -72,17 +83,22 @@ def remove_background(image: Image.Image, use_rembg: bool = True) -> Image.Image
     返回:
         移除背景后的图像（RGBA 模式，透明背景）。
     """
-    if use_rembg and HAS_BACKGROUND_REMOVER and BackgroundRemover is not None:
-        # 如果图像是 RGB 模式，使用 BackgroundRemover
-        if image.mode == 'RGB':
-            rembg = BackgroundRemover()
-            image = rembg(image)
+    if use_rembg and HAS_BACKGROUND_REMOVER:
+        if USE_REMBG_LIB:
+            # 使用 rembg 库
+            return BackgroundRemover(image)
+        elif BackgroundRemover is not None:
+            # 使用 Hunyuan3D 的 BackgroundRemover
+            # 如果图像是 RGB 模式，使用 BackgroundRemover
+            if image.mode == 'RGB':
+                rembg = BackgroundRemover()
+                image = rembg(image)
+                return image.convert("RGBA")
+            # 如果已经是 RGBA，直接返回
             return image.convert("RGBA")
-        # 如果已经是 RGBA，直接返回
-        return image.convert("RGBA")
-    else:
-        # 如果没有 BackgroundRemover，返回原始图像（转换为 RGBA）
-        return image.convert("RGBA")
+    
+    # 如果没有 BackgroundRemover，返回原始图像（转换为 RGBA）
+    return image.convert("RGBA")
 
 
 def preprocess_image_for_model(image: Image.Image, config: Dict | None = None) -> Dict:
@@ -123,5 +139,3 @@ def preprocess_image_for_model(image: Image.Image, config: Dict | None = None) -
 
 
 __all__ = ["resize_and_normalize", "compute_edge_map", "preprocess_image_for_model", "remove_background"]
-
-

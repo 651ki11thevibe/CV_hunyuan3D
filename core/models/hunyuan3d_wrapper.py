@@ -186,8 +186,8 @@ class Hunyuan3DModel:
     
     def _load_shape_pipeline(self, model_path: str, model_subfolder: Optional[str], variant: Optional[str] = None):
         kwargs: Dict[str, Any] = {}
-        if model_subfolder:
-            kwargs["subfolder"] = model_subfolder
+        # 即使是空字符串也需要传递，以覆盖 pipeline 默认的 'hunyuan3d-dit-v2-0'
+        kwargs["subfolder"] = model_subfolder if model_subfolder is not None else ""
         if variant:
             kwargs["variant"] = variant
         if self._hf_auth_token:
@@ -202,8 +202,7 @@ class Hunyuan3DModel:
 
     def _load_texture_pipeline(self, model_path: str, model_subfolder: Optional[str]):
         kwargs: Dict[str, Any] = {}
-        if model_subfolder:
-            kwargs["subfolder"] = model_subfolder
+        kwargs["subfolder"] = model_subfolder if model_subfolder is not None else ""
         if self._hf_auth_token:
             kwargs["token"] = self._hf_auth_token
 
