@@ -17,4 +17,23 @@ opencv-python      # 用于光流计算（Consistency Score 需要）
 open-clip-torch    # 用于真实 CLIP 模型（CLIPScore 和 Consistency Score 需要，可选）
 torch              # 用于 CLIP 模型（如果使用 open-clip-torch）
 
+# GRN 模块依赖（可选，用于几何修复）:
+# 注意：GRN 模块有独立的 requirements.txt，建议在 core/GRN/ 目录下安装
+# torch>=2.0.0
+# torchvision>=0.15.0
+# open3d>=0.17.0
+# pytorch3d>=0.7.4
+# objaverse>=0.1.0
+# tensorboard>=2.13.0
+# omegaconf>=2.3.0
+# hydra-core>=1.3.0
+# einops>=0.6.0
+
+# TCE 模块依赖（可选，用于纹理一致性增强）:
+# 注意：TCE 模块有独立的 requirements.txt，建议在 core/TCE/ 目录下安装
+# clip-by-openai>=1.0  # 或使用 open-clip-torch（已在上方列出）
+
+# 后处理依赖（可选，用于 Blender 后处理）:
+# 需要单独安装 Blender: https://www.blender.org/download/
+
 

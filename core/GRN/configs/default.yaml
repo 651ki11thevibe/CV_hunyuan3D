@@ -1,0 +1,54 @@
+# GRN训练配置文件
+
+# 数据配置
+data:
+  root: ./data
+  train_split: train
+  val_split: val
+  image_size: 256
+  num_views: 8
+  degradation:
+    noise_std_range: [0.01, 0.05]
+    hole_prob: 0.3
+    hole_size_range: [5, 20]
+    distortion_prob: 0.2
+    distortion_strength: 0.1
+
+# 模型配置
+model:
+  in_channels: 5
+  out_channels: 4
+
+# 训练配置
+training:
+  batch_size: 8
+  num_epochs: 100
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  lr_scheduler:
+    type: cosine
+    T_max: 100
+    eta_min: 0.00001
+  gradient_clip: 1.0
+
+# 损失函数配置
+# 损失函数公式：Lgeo = Lrec + λsm Lsmooth + λnc Lnormal + λlap Llap
+loss:
+  rec_weight: 1.0          # λrec: L1重建损失权重
+  smooth_weight: 0.1       # λsm: 平滑度约束权重
+  normal_weight: 2.0       # λnc: 法线一致性损失权重
+  laplacian_weight: 0.05   # λlap: 拉普拉斯平滑项权重
+
+# 输出配置
+output:
+  checkpoint_dir: ./checkpoints
+  log_dir: ./logs
+  save_interval: 10
+  val_interval: 5
+  visualize_interval: 20
+
+# 设备配置
+device: cuda
+num_workers: 4
+pin_memory: true
+
