@@ -1,0 +1,12 @@
+Job ID: 326962
+Node: dgx-15
+Start Time: Sat Dec  6 02:14:23 AM HKT 2025
+=========================================================
+Job Started: batch_job_01
+Output Directory: outputs/batch_job_01_20251206_021423
+=========================================================
+>>> Step 1: Generating Multi-View Images with Qwen (Env: qwen_edit)
+   Using Smart Strategy: Caption -> AR Generation
+--- Step 0: Generating Caption with Qwen/Qwen2.5-VL-3B-Instruct ---
+   [√] Generated Caption: 'A cute 3D-rendered penguin standing on a plain surface'
+--- Step 1: Loading Edit Model Qwen/Qwen-Image-Edit-2509 ---

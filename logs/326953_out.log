@@ -1,0 +1,63 @@
+Job ID: 326953
+Node: dgx-17
+Start Time: Sat Dec  6 01:50:37 AM HKT 2025
+=========================================================
+Job Started: batch_job_01
+Output Directory: outputs/batch_job_01_20251206_015037
+=========================================================
+>>> Step 1: Generating Multi-View Images with Qwen (Env: qwen_edit)
+   Using AR Strategy: Front -> [Front]->Right -> [Front,Right]->Left -> [Front,Right,Left]->Back
+--- Qwen AR Multi-View Generation ---
+Strategy: Front -> [Front]->Right -> [Front,Right]->Left -> [Front,Right,Left]->Back
+Loading model: Qwen/Qwen-Image-Edit-2509...
+[1/4] Saved Front view
+[2/4] Generating Right view (Input: Front)...
+[3/4] Generating Left view (Input: Front + Right)...
+[4/4] Generating Back view (Input: Front + Right + Left)...
+Success! All AR views saved to: /home/ywangqy/img23d/CV_hunyuan3D/outputs/batch_job_01_20251206_015037/views
+   [√] Generated views (front, left, right, back) in: outputs/batch_job_01_20251206_015037/views
+>>> Step 2: Running Hunyuan3D Multi-View Generation (Env: cv3d)
+Warning:
+Unable to load the following plugins:
+
+	libfilter_ao.so: libfilter_ao.so does not seem to be a Qt Plugin.
+
+Cannot load library /home/ywangqy/.conda/envs/cv3d/lib/python3.10/site-packages/pymeshlab/lib/plugins/libfilter_ao.so: (libOpenGL.so.0: cannot open shared object file: No such file or directory)
+	libfilter_meshing.so: libfilter_meshing.so does not seem to be a Qt Plugin.
+
+Cannot load library /home/ywangqy/.conda/envs/cv3d/lib/python3.10/site-packages/pymeshlab/lib/plugins/libfilter_meshing.so: (libOpenGL.so.0: cannot open shared object file: No such file or directory)
+	libfilter_plymc.so: libfilter_plymc.so does not seem to be a Qt Plugin.
+
+Cannot load library /home/ywangqy/.conda/envs/cv3d/lib/python3.10/site-packages/pymeshlab/lib/plugins/libfilter_plymc.so: (libOpenGL.so.0: cannot open shared object file: No such file or directory)
+	libfilter_sample_gpu.so: libfilter_sample_gpu.so does not seem to be a Qt Plugin.
+
+Cannot load library /home/ywangqy/.conda/envs/cv3d/lib/python3.10/site-packages/pymeshlab/lib/plugins/libfilter_sample_gpu.so: (libOpenGL.so.0: cannot open shared object file: No such file or directory)
+	libfilter_sdfgpu.so: libfilter_sdfgpu.so does not seem to be a Qt Plugin.
+
+Cannot load library /home/ywangqy/.conda/envs/cv3d/lib/python3.10/site-packages/pymeshlab/lib/plugins/libfilter_sdfgpu.so: (libOpenGL.so.0: cannot open shared object file: No such file or directory)
+	libfilter_ssynth.so: libfilter_ssynth.so does not seem to be a Qt Plugin.
+
+Cannot load library /home/ywangqy/.conda/envs/cv3d/lib/python3.10/site-packages/pymeshlab/lib/plugins/libfilter_ssynth.so: (libOpenGL.so.0: cannot open shared object file: No such file or directory)
+	libfilter_texture_defragmentation.so: libfilter_texture_defragmentation.so does not seem to be a Qt Plugin.
+
+Cannot load library /home/ywangqy/.conda/envs/cv3d/lib/python3.10/site-packages/pymeshlab/lib/plugins/libfilter_texture_defragmentation.so: (libOpenGL.so.0: cannot open shared object file: No such file or directory)
+	libio_base.so: libio_base.so does not seem to be a Qt Plugin.
+
+Cannot load library /home/ywangqy/.conda/envs/cv3d/lib/python3.10/site-packages/pymeshlab/lib/plugins/libio_base.so: (libOpenGL.so.0: cannot open shared object file: No such file or directory)
+	libio_x3d.so: libio_x3d.so does not seem to be a Qt Plugin.
+
+Cannot load library /home/ywangqy/.conda/envs/cv3d/lib/python3.10/site-packages/pymeshlab/lib/plugins/libio_x3d.so: (libOpenGL.so.0: cannot open shared object file: No such file or directory)
+
+PointCrossAttentionEncoder INFO: pc_sharpedge_size is given, using pc_size=5120, pc_sharpedge_size=5120
+开始处理，输入视图: ['front', 'left', 'right', 'back']
+[MultiViewPipeline] 正在使用 4 个视图进行生成: ['front', 'left', 'right', 'back']...
+[MultiViewPipeline] 纹理参考图数量: 4
+
+生成成功！
+Mesh saved to: outputs/mv_assets/result.glb
+Metadata saved to: outputs/mv_assets/result_metadata.json
+   [√] Final 3D model moved to: outputs/batch_job_01_20251206_015037/final_model.glb
+=========================================================
+All Done! Results are in: outputs/batch_job_01_20251206_015037
+=========================================================
+End Time: Sat Dec  6 01:59:06 AM HKT 2025

@@ -9,18 +9,29 @@
 
 from __future__ import annotations
 
-from typing import Dict, Tuple, Optional, Union
+from typing import Dict, Tuple, Optional
 
 import numpy as np
 from PIL import Image, ImageOps
+import sys
 
 # 尝试导入 BackgroundRemover（Hunyuan3D 官方提供的背景移除工具）
 try:
     from hy3dgen.rembg import BackgroundRemover
     HAS_BACKGROUND_REMOVER = True
 except ImportError:
-    HAS_BACKGROUND_REMOVER = False
-    BackgroundRemover = None  # type: ignore
+    # 尝试使用 rembg 库作为备选
+    try:
+        from rembg import remove
+        HAS_BACKGROUND_REMOVER = True
+        BackgroundRemover = remove # type: ignore
+        USE_REMBG_LIB = True
+    except ImportError:
+        HAS_BACKGROUND_REMOVER = False
+        BackgroundRemover = None  # type: ignore
+        USE_REMBG_LIB = False
+else:
+    USE_REMBG_LIB = False
 
 
 def resize_and_normalize(image: Image.Image, size: Tuple[int, int] = (512, 512)) -> Image.Image:
@@ -72,47 +83,43 @@ def remove_background(image: Image.Image, use_rembg: bool = True) -> Image.Image
     返回:
         移除背景后的图像（RGBA 模式，透明背景）。
     """
-    if use_rembg and HAS_BACKGROUND_REMOVER and BackgroundRemover is not None:
-        # 如果图像是 RGB 模式，使用 BackgroundRemover
-        if image.mode == 'RGB':
-            rembg = BackgroundRemover()
-            image = rembg(image)
+    if use_rembg and HAS_BACKGROUND_REMOVER:
+        if USE_REMBG_LIB:
+            # 使用 rembg 库
+            return BackgroundRemover(image)
+        elif BackgroundRemover is not None:
+            # 使用 Hunyuan3D 的 BackgroundRemover
+            # 如果图像是 RGB 模式，使用 BackgroundRemover
+            if image.mode == 'RGB':
+                rembg = BackgroundRemover()
+                image = rembg(image)
+                return image.convert("RGBA")
+            # 如果已经是 RGBA，直接返回
             return image.convert("RGBA")
-        # 如果已经是 RGBA，直接返回
-        return image.convert("RGBA")
-    else:
-        # 如果没有 BackgroundRemover，返回原始图像（转换为 RGBA）
-        return image.convert("RGBA")
+    
+    # 如果没有 BackgroundRemover，返回原始图像（转换为 RGBA）
+    return image.convert("RGBA")
 
 
-def preprocess_image_for_model(
-    image: Union[Image.Image, Dict[str, Image.Image]], 
-    config: Dict | None = None
-) -> Dict:
+def preprocess_image_for_model(image: Image.Image, config: Dict | None = None) -> Dict:
     """
     供流水线调用的高层图像预处理入口。
-    支持单张图像或多视角图像字典。
 
     参数:
-        image: 输入 PIL 图像或多视角图像字典（键为视角名称，值为 PIL Image）。
+        image: 输入 PIL 图像。
         config: 可选的预处理配置字典。
             - enable_background_removal: bool (默认 True) - 是否启用背景移除
 
     返回:
         字典，包含：
-            - 'image': 预处理后的图像（RGB 或 RGBA）或多视角图像字典
-            - 'edge_map': 简单的边缘图（numpy 数组）或多视角边缘图字典
+            - 'image': 预处理后的图像（RGB 或 RGBA）
+            - 'edge_map': 简单的边缘图（numpy 数组）
     """
     # 检查是否启用背景移除
     enable_bg_removal = True
     if config:
         enable_bg_removal = config.get("enable_background_removal", True)
     
-    # 处理多视角图像字典
-    if isinstance(image, dict):
-        return preprocess_multi_view_images(image, config=config)
-    
-    # 处理单张图像
     # 背景移除（如果启用）
     if enable_bg_removal:
         image = remove_background(image, use_rembg=True)
@@ -131,68 +138,4 @@ def preprocess_image_for_model(
     return {"image": resized, "edge_map": edges}
 
 
-def preprocess_multi_view_images(
-    images: Dict[str, Image.Image], 
-    config: Dict | None = None
-) -> Dict[str, Dict]:
-    """
-    预处理多视角图像字典。
-
-    参数:
-        images: 字典，键为视角名称（如 "front", "left", "back"），值为 PIL Image。
-        config: 可选的预处理配置字典。
-
-    返回:
-        字典，键为视角名称，值为包含 'image' 和 'edge_map' 的字典。
-        同时返回顶层 'image' 键，包含所有视角的字典（用于 Hunyuan3D 输入）。
-    """
-    enable_bg_removal = True
-    if config:
-        enable_bg_removal = config.get("enable_background_removal", True)
-    
-    processed_views: Dict[str, Dict] = {}
-    processed_images: Dict[str, Image.Image] = {}
-    
-    # 处理每个视角
-    for view_name, img in images.items():
-        # 背景移除（如果启用）
-        if enable_bg_removal:
-            # 如果图像是 RGB 模式，使用 BackgroundRemover
-            if img.mode == 'RGB':
-                if HAS_BACKGROUND_REMOVER and BackgroundRemover is not None:
-                    rembg = BackgroundRemover()
-                    img = rembg(img)
-            # 确保为 RGBA 模式
-            img = img.convert("RGBA")
-        else:
-            # 即使不启用背景移除，也转换为 RGBA 以保持一致
-            img = img.convert("RGBA")
-        
-        # 缩放和规范化
-        resized = ImageOps.fit(img, (512, 512), method=Image.BICUBIC)
-        
-        # 计算边缘图（使用 RGB 版本）
-        edges = compute_edge_map(resized.convert("RGB"))
-        
-        processed_views[view_name] = {
-            "image": resized,
-            "edge_map": edges
-        }
-        processed_images[view_name] = resized
-    
-    # 返回格式：包含所有视角的字典（用于 Hunyuan3D 输入）
-    return {
-        "image": processed_images,  # 顶层 'image' 键，包含所有视角
-        "edge_map": {view: data["edge_map"] for view, data in processed_views.items()}
-    }
-
-
-__all__ = [
-    "resize_and_normalize", 
-    "compute_edge_map", 
-    "preprocess_image_for_model", 
-    "preprocess_multi_view_images",
-    "remove_background"
-]
-
-
+__all__ = ["resize_and_normalize", "compute_edge_map", "preprocess_image_for_model", "remove_background"]

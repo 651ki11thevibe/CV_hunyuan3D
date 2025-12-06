@@ -1,0 +1,39 @@
+# Hunyuan3D-2mv 本地模型配置文件
+# 使用 scripts/download_models.py 下载权重后使用此配置
+
+# 形状生成模型 (下载到本地 weights 目录)
+# 注意：需要使用绝对路径或相对于运行目录的正确路径
+model_path: "/home/ywangqy/img23d/CV_hunyuan3D/weights/hunyuan3d-dit-v2-mv"
+model_subfolder: ""  # 本地路径已包含子目录，此处留空
+
+# 纹理生成模型 (下载到本地 weights 目录)
+# 复用 hunyuan3d-paint-v2-0
+# 注意：纹理生成需要编译 custom_rasterizer 扩展，暂时禁用
+enable_texture: false
+texture_model_path: "tencent/Hunyuan3D-2"
+texture_subfolder: "hunyuan3d-paint-v2-0" # 必须是 'hunyuan3d-paint-v2-0' 或 'hunyuan3d-paint-v2-0-turbo'
+texture_reference_field: "image"
+
+# 设备配置
+device: "cuda"
+torch_dtype: "float16"
+sampling_steps: 30
+
+# 图像预处理
+image_preprocessing:
+  enable_background_removal: true
+
+# 形状生成参数
+shape_pipeline_kwargs:
+  output_type: "trimesh"
+  octree_resolution: 380
+  num_chunks: 20000
+
+# 显存优化
+low_vram_mode: true
+enable_flashvdm: false
+
+# 输出
+default_output_dir: "outputs/mv_assets"
+
+
