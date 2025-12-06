@@ -12,4 +12,9 @@ accelerate         # 用于本地 diffusers（必需）
 sentencepiece      # 用于 FLUX 等模型的 tokenizer（必需，如果使用 FLUX 模型）
 modelscope         # 用于从魔塔社区下载模型（推荐）
 
+# 评估模块可选依赖:
+opencv-python      # 用于光流计算（Consistency Score 需要）
+open-clip-torch    # 用于真实 CLIP 模型（CLIPScore 和 Consistency Score 需要，可选）
+torch              # 用于 CLIP 模型（如果使用 open-clip-torch）
+
 

@@ -97,13 +97,28 @@ snapshot_download('AI-ModelScope/FLUX.1-schnell',
 编辑 `configs/hunyuan3d_default.yaml`，确认模型路径：
 
 ```yaml
+# 单视角模型配置（默认）
 model_path: "/root/autodl-tmp/models/Hunyuan3D-2-local"
 model_subfolder: "hunyuan3d-dit-v2-0"
+
+# 多视角模型配置（自动切换）
+# 当输入为多视角图像时，系统会自动使用 multi-view 模型
+multi_view:
+  enabled: true  # 是否启用多视角自动切换
+  model_path: "/root/autodl-tmp/models/Hunyuan3D-2-local"
+  model_subfolder: "hunyuan3d-dit-v2-mv"
+  variant: "fp16"  # 可选，指定模型变体
+
 texture_model_path: "/root/autodl-tmp/models/Hunyuan3D-2-local"
 texture_subfolder: "hunyuan3d-paint-v2-0"
 text_to_image:
   local_model_path: "/root/autodl-tmp/models/FLUX.1-schnell"
 ```
+
+**自动模型切换说明：**
+- 当输入为**单张图像**时，系统自动使用单视角模型（`hunyuan3d-dit-v2-0`）
+- 当输入为**多视角图像**（front, left, back）时，系统自动切换到多视角模型（`hunyuan3d-dit-v2-mv`）
+- 无需手动修改配置文件，系统会根据输入自动选择对应的模型
 
 ## 使用方法
 
@@ -115,9 +130,24 @@ python scripts/run_text2asset.py --prompt "a wooden chair" --name chair
 
 ### 图像 → 3D
 
+**单张图像：**
 ```bash
 python scripts/run_image2asset.py --image path/to/image.png --name output
 ```
+
+**多视角图像（三个视角）：**
+```bash
+python scripts/run_image2asset.py \
+    --front path/to/front.png \
+    --left path/to/left.png \
+    --back path/to/back.png \
+    --name output_mv
+```
+
+**自动模型切换：**
+- 系统会自动检测输入类型（单张图像或多视角图像）
+- 多视角输入时，自动切换到 multi-view 模型（需在配置文件中启用 `multi_view.enabled: true`）
+- 无需手动切换配置，首次使用时会自动加载对应的模型
 
 ### 输出文件
 

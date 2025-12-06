@@ -1,9 +1,17 @@
+# 单视角模型配置（默认）
 model_path: "/root/autodl-tmp/models/Hunyuan3D-2-local"
 model_subfolder: "hunyuan3d-dit-v2-0"
-# 对于多视图模型，使用：
-# model_path: "tencent/Hunyuan3D-2mv"
-# model_subfolder: "hunyuan3d-dit-v2-mv"
-# variant: "fp16"  # 可选，指定模型变体
+
+# 多视角模型配置（自动切换）
+# 当输入为多视角图像时，将自动使用以下配置
+multi_view:
+  enabled: true  # 是否启用多视角自动切换
+  model_path: "/root/autodl-tmp/models/Hunyuan3D-2-local"
+  model_subfolder: "hunyuan3d-dit-v2-mv"
+  variant: "fp16"  # 可选，指定模型变体
+  # 如果使用 HuggingFace 模型，可以这样配置：
+  # model_path: "tencent/Hunyuan3D-2mv"
+  # model_subfolder: "hunyuan3d-dit-v2-mv"
 device: "cuda"
 torch_dtype: "float16"
 sampling_steps: 30

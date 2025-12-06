@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Union
 
 import numpy as np
 from PIL import Image, ImageOps
@@ -85,25 +85,34 @@ def remove_background(image: Image.Image, use_rembg: bool = True) -> Image.Image
         return image.convert("RGBA")
 
 
-def preprocess_image_for_model(image: Image.Image, config: Dict | None = None) -> Dict:
+def preprocess_image_for_model(
+    image: Union[Image.Image, Dict[str, Image.Image]], 
+    config: Dict | None = None
+) -> Dict:
     """
     供流水线调用的高层图像预处理入口。
+    支持单张图像或多视角图像字典。
 
     参数:
-        image: 输入 PIL 图像。
+        image: 输入 PIL 图像或多视角图像字典（键为视角名称，值为 PIL Image）。
         config: 可选的预处理配置字典。
             - enable_background_removal: bool (默认 True) - 是否启用背景移除
 
     返回:
         字典，包含：
-            - 'image': 预处理后的图像（RGB 或 RGBA）
-            - 'edge_map': 简单的边缘图（numpy 数组）
+            - 'image': 预处理后的图像（RGB 或 RGBA）或多视角图像字典
+            - 'edge_map': 简单的边缘图（numpy 数组）或多视角边缘图字典
     """
     # 检查是否启用背景移除
     enable_bg_removal = True
     if config:
         enable_bg_removal = config.get("enable_background_removal", True)
     
+    # 处理多视角图像字典
+    if isinstance(image, dict):
+        return preprocess_multi_view_images(image, config=config)
+    
+    # 处理单张图像
     # 背景移除（如果启用）
     if enable_bg_removal:
         image = remove_background(image, use_rembg=True)
@@ -122,6 +131,68 @@ def preprocess_image_for_model(image: Image.Image, config: Dict | None = None) -
     return {"image": resized, "edge_map": edges}
 
 
-__all__ = ["resize_and_normalize", "compute_edge_map", "preprocess_image_for_model", "remove_background"]
+def preprocess_multi_view_images(
+    images: Dict[str, Image.Image], 
+    config: Dict | None = None
+) -> Dict[str, Dict]:
+    """
+    预处理多视角图像字典。
+
+    参数:
+        images: 字典，键为视角名称（如 "front", "left", "back"），值为 PIL Image。
+        config: 可选的预处理配置字典。
+
+    返回:
+        字典，键为视角名称，值为包含 'image' 和 'edge_map' 的字典。
+        同时返回顶层 'image' 键，包含所有视角的字典（用于 Hunyuan3D 输入）。
+    """
+    enable_bg_removal = True
+    if config:
+        enable_bg_removal = config.get("enable_background_removal", True)
+    
+    processed_views: Dict[str, Dict] = {}
+    processed_images: Dict[str, Image.Image] = {}
+    
+    # 处理每个视角
+    for view_name, img in images.items():
+        # 背景移除（如果启用）
+        if enable_bg_removal:
+            # 如果图像是 RGB 模式，使用 BackgroundRemover
+            if img.mode == 'RGB':
+                if HAS_BACKGROUND_REMOVER and BackgroundRemover is not None:
+                    rembg = BackgroundRemover()
+                    img = rembg(img)
+            # 确保为 RGBA 模式
+            img = img.convert("RGBA")
+        else:
+            # 即使不启用背景移除，也转换为 RGBA 以保持一致
+            img = img.convert("RGBA")
+        
+        # 缩放和规范化
+        resized = ImageOps.fit(img, (512, 512), method=Image.BICUBIC)
+        
+        # 计算边缘图（使用 RGB 版本）
+        edges = compute_edge_map(resized.convert("RGB"))
+        
+        processed_views[view_name] = {
+            "image": resized,
+            "edge_map": edges
+        }
+        processed_images[view_name] = resized
+    
+    # 返回格式：包含所有视角的字典（用于 Hunyuan3D 输入）
+    return {
+        "image": processed_images,  # 顶层 'image' 键，包含所有视角
+        "edge_map": {view: data["edge_map"] for view, data in processed_views.items()}
+    }
+
+
+__all__ = [
+    "resize_and_normalize", 
+    "compute_edge_map", 
+    "preprocess_image_for_model", 
+    "preprocess_multi_view_images",
+    "remove_background"
+]
 
 

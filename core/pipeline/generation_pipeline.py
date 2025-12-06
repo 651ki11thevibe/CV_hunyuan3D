@@ -33,6 +33,11 @@ class GenerationPipeline:
         self.config = config
         self.model = load_hunyuan3d_from_config(config)
         self.output_dir = ensure_dir(config.get("default_output_dir", "outputs"))
+        
+        # 检查是否配置了 multi-view 模型（用于自动切换）
+        self.multi_view_config = config.get("multi_view", {})
+        self.multi_view_enabled = self.multi_view_config.get("enabled", False)
+        self._multi_view_model = None  # 延迟加载 multi-view 模型
 
     @classmethod
     def from_config_file(cls, path: str | Path) -> "GenerationPipeline":
@@ -105,6 +110,45 @@ class GenerationPipeline:
         result["intermediate_image_path"] = intermediate_image_path
         return result
 
+    def _get_model_for_input(self, preprocessed: Dict[str, Any]) -> Any:
+        """
+        根据预处理后的输入类型自动选择模型（单视角或多视角）。
+        
+        参数:
+            preprocessed: 预处理后的图像字典，包含 "image" 字段
+            
+        返回:
+            Hunyuan3DModel 实例
+        """
+        # 检查预处理后的 "image" 字段是否为多视角字典
+        image_data = preprocessed.get("image")
+        # 判断是否为多视角：字典格式且值都是 Image 对象
+        is_multi_view = (
+            isinstance(image_data, dict) 
+            and len(image_data) > 1  # 多个视角
+            and all(isinstance(v, Image.Image) for v in image_data.values())
+        )
+        
+        # 如果是多视角输入且启用了 multi-view 配置，使用 multi-view 模型
+        if is_multi_view and self.multi_view_enabled:
+            if self._multi_view_model is None:
+                # 延迟加载 multi-view 模型（首次使用时才加载）
+                print("[多视角检测] 检测到多视角输入，正在切换到 multi-view 模型...")
+                multi_view_config = self.config.copy()
+                # 覆盖为 multi-view 模型配置
+                if "model_path" in self.multi_view_config:
+                    multi_view_config["model_path"] = self.multi_view_config["model_path"]
+                if "model_subfolder" in self.multi_view_config:
+                    multi_view_config["model_subfolder"] = self.multi_view_config["model_subfolder"]
+                if "variant" in self.multi_view_config:
+                    multi_view_config["variant"] = self.multi_view_config["variant"]
+                self._multi_view_model = load_hunyuan3d_from_config(multi_view_config)
+                print("[多视角检测] Multi-view 模型加载完成")
+            return self._multi_view_model
+        else:
+            # 使用默认的单视角模型
+            return self.model
+
     def generate_from_image(
         self,
         image,
@@ -114,11 +158,16 @@ class GenerationPipeline:
     ) -> Dict[str, Any]:
         """
         完整的图像到资产生成流水线。
+        支持单张图像或多视角图像字典，自动选择对应的模型。
         """
         # 从配置中获取图像预处理设置
         image_preprocessing_config = self.config.get("image_preprocessing", {})
         preprocessed = preprocess_image_for_model(image, config=image_preprocessing_config)
-        raw_asset = self.model.generate_from_image(preprocessed)
+        
+        # 根据预处理后的输入类型自动选择模型
+        model = self._get_model_for_input(preprocessed)
+        
+        raw_asset = model.generate_from_image(preprocessed)
         refined_asset = self._run_refinement(raw_asset)
 
         mesh_path = save_asset_as_mesh(

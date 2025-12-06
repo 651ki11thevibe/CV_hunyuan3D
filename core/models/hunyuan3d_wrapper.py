@@ -313,6 +313,11 @@ class Hunyuan3DModel:
         shape = _unwrap_pipeline_output(shape_result)
         
         fallback_reference = preprocessed_image.get(self.texture_reference_field)
+        
+        # 如果 fallback_reference 是多视角图像字典，使用 "front" 视角作为纹理参考（与官方 demo 一致）
+        if isinstance(fallback_reference, dict) and "front" in fallback_reference:
+            fallback_reference = fallback_reference["front"]
+        
         reference = self._resolve_texture_reference(extra_cond, fallback=fallback_reference)
         textured = self._maybe_apply_texture(shape, reference)
         return self._mesh_to_raw_asset(textured)
